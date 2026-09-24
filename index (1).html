@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CS2 FULL 3D + CASES + INVENTORY + SKININSPECT</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+        body, html { width: 100vw; height: 100vh; overflow: hidden; background: #0f172a; font-family: 'Arial', sans-serif; color: #fff; }
+        canvas { width: 100vw; height: 100vh; display: block; position: fixed; inset: 0; z-index: 1; pointer-events: none; }
+        body.in-game canvas { pointer-events: auto; }
+
+        #lobby-screen {
+            position: fixed; inset: 0; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); z-index: 500; display: flex;
+            align-items: center; justify-content: center; overflow-y: auto; padding: 20px;
+        }
+        .lobby-card {
+            background: #1e293b; border: 1px solid rgba(255,255,255,0.1); width: 920px; max-width: 95vw;
+            border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 20px;
+        }
+        .lobby-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .lobby-title { font-size: 24px; font-weight: 800; letter-spacing: 1px; color: #f8fafc; }
+        .lobby-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+        .tab-btn {
+            background: #0f172a; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8;
+            padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; text-transform: uppercase; transition: 0.2s;
+        }
+        .tab-btn.active, .tab-btn:hover { background: #3b82f6; border-color: #3b82f6; color: white; }
+        
+        .lobby-subtext { font-size: 13px; color: #94a3b8; background: rgba(0,0,0,0.2); padding: 12px 16px; border-radius: 6px; border-left: 3px solid #3b82f6; }
+        .lobby-stats { background: rgba(0,0,0,0.25); padding: 12px 16px; border-radius: 6px; font-size: 13px; color: #cbd5e1; font-weight: 600; display:flex; justify-content:space-between; }
+        .lobby-stats span { color: #facc15; }
+        
+        .lobby-action-btn {
+            background: #22c55e; border: none; color: white;
+            padding: 16px; font-weight: 800; border-radius: 8px; cursor: pointer; font-size: 15px; text-transform: uppercase;
+            box-shadow: 0 4px 15px rgba(34,197,94,0.4); display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .tab-content-panel { display: none; background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; color: #cbd5e1; font-size: 13px; max-height: 380px; overflow-y: auto; }
+        .tab-content-panel.active { display: block; }
+
+        .case-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; }
+        .case-card {
+            background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 15px;
+            text-align: center; cursor: pointer; transition: 0.2s;
+        }
+        .case-card:hover { border-color: #3b82f6; transform: translateY(-3px); }
+        .case-icon { font-size: 40px; margin-bottom: 10px; }
+        
+        #case-roulette-modal {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.95); z-index: 1500; display: none;
+            align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+        }
+        .roulette-track-window { width: 700px; max-width: 95vw; height: 130px; background: #0f172a; border: 2px solid #3b82f6; border-radius: 10px; overflow: hidden; position: relative; display: flex; align-items: center; }
+        .roulette-track { display: flex; position: absolute; left: 0; transition: transform 4s cubic-bezier(0.1, 0.9, 0.2, 1); }
+        .roulette-item { width: 120px; height: 100px; background: #1e293b; border-right: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; gap: 5px; font-weight: bold; color: white; }
+        .roulette-pointer { position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%); width: 3px; background: #ef4444; z-index: 10; pointer-events: none; }
+
+        .inventory-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+        .inv-item { background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; text-align: center; display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
+        .inv-item.equipped { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+        .inv-btn { background: #334155; border: none; color: white; padding: 5px; border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold; }
+        .inv-btn.eq { background: #22c55e; }
+
+        .settings-grid { display: flex; flex-direction: column; gap: 12px; }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px; border-radius: 6px; flex-wrap: wrap; gap: 10px; }
+
+        #hud-top {
+            position: fixed; top: 15px; left: 15px; right: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+            pointer-events: none; z-index: 20; opacity: 0; transition: opacity 0.3s;
+        }
+        .hud-panel {
+            background: rgba(15,23,42,0.85); backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1); color: white; padding: 10px 18px; border-radius: 6px;
+            font-size: 13px; font-weight: 600; display: flex; gap: 16px; align-items: center; pointer-events: auto; flex-wrap: wrap;
+        }
+        .hp-val { color: #22c55e; }
+        .cash-val { color: #facc15; }
+        .kills-val { color: #f97316; }
+        .hud-btn {
+            pointer-events: auto; background: #334155; border: none; color: white;
+            padding: 8px 16px; font-weight: 700; border-radius: 6px; cursor: pointer; text-transform: uppercase; font-size: 11px;
+        }
+
+        #crosshair {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: rgba(255,255,255,0.8); font-size: 20px; pointer-events: none; z-index: 20; opacity: 0; transition: opacity 0.3s;
+        }
+
+        #virtual-dpad {
+            position: fixed; bottom: 25px; left: 25px; width: 130px; height: 130px;
+            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+            gap: 6px; pointer-events: auto; z-index: 20; opacity: 0; transition: opacity 0.3s;
+        }
+        .hud-pos-left-top #virtual-dpad { bottom: auto; top: 85px; left: 20px; }
+        .d-btn {
+            background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px; color: white; display: flex; align-items: center; justify-content: center;
+            font-size: 16px; touch-action: none; backdrop-filter: blur(4px); cursor: pointer;
+        }
+        .d-btn.pressed { background: rgba(59,130,246,0.7); }
+
+        #action-buttons {
+            position: fixed; bottom: 25px; right: 25px;
+            display: flex; gap: 14px; align-items: center; pointer-events: auto; z-index: 20; opacity: 0; transition: opacity 0.3s;
+        }
+        .hud-pos-left-top #action-buttons { bottom: auto; top: 85px; right: 20px; flex-direction: column; }
+        .action-circle {
+            width: 70px; height: 70px; border-radius: 50%;
+            background: rgba(15,23,42,0.85); border: 2px solid rgba(255,255,255,0.3);
+            color: white; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700; cursor: pointer; text-align: center; backdrop-filter: blur(6px);
+        }
+        .action-circle.jump-btn { border-color: #22c55e; color: #22c55e; }
+        .action-circle.jump-btn.pressed, .action-circle.fire-btn.pressed { transform: scale(0.95); opacity: 0.8; }
+        .action-circle.fire-btn { border-color: #ef4444; color: #ef4444; width: 80px; height: 80px; }
+
+        /* ИНТЕГРИРОВАННАЯ КАРТОЧКА ОСМОТРА СКИНОВ (CS2 Style) */
+        #skin-inspect-overlay {
+            position: fixed; inset: 0; pointer-events: none; z-index: 30; opacity: 0; transition: opacity 0.25s ease;
+        }
+        #skin-inspect-overlay.active { opacity: 1; pointer-events: auto; }
+        
+        .skin-preview-card {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            width: 580px;
+            max-width: 90vw;
+            height: auto;
+            border: 2px solid #3a3a3a;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            background: rgba(20, 24, 33, 0.82);
+            backdrop-filter: blur(6px);
+            z-index: 35;
+        }
+        .skin-preview-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 35%;
+            background: linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0));
+            z-index: 1;
+        }
+        .info-container {
+            position: relative;
+            z-index: 2;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 6px 14px;
+            border-radius: 4px;
+            border-left: 4px solid #fff;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .knife-row { border-left-color: #eb4b4b; }
+        .glove-row { border-left-color: #eb4b4b; }
+        .agent-row { border-left-color: #ade55c; }
+        .label { color: #888; font-weight: bold; }
+        .value { color: #fff; font-weight: 600; }
+        .float-bar { width: 100px; height: 4px; background: #444; border-radius: 2px; position: relative; margin-left: auto; }
+        .float-value { height: 100%; width: 7%; background: #ade55c; border-radius: 2px; }
+        .inspect-badge-hint {
+            position: fixed; top: 25%; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.2);
+            padding: 6px 16px; border-radius: 20px; font-size: 11px; letter-spacing: 1px; color: #94a3b8;
+            pointer-events: none; z-index: 35; text-transform: uppercase;
+        }
+
+        #menu-modal {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.85); backdrop-filter: blur(8px);
+            display: none; align-items: center; justify-content: center; z-index: 1200;
+        }
+        .menu-box {
+            background: #1e293b; border: 1px solid rgba(255,255,255,0.1); width: 480px; max-width: 92vw;
+            border-radius: 10px; padding: 25px; color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .menu-box h2 { margin-bottom: 18px; font-size: 20px; }
+        .menu-section { margin-bottom: 18px; }
+        .menu-section label { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; }
+        .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .opt-btn {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 11px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+        }
+        .opt-btn.active { background: #3b82f6; border-color: #3b82f6; }
+        .close-menu { width: 100%; margin-top: 12px; background: #22c55e; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body id="body-root">
+
+    <div id="lobby-screen">
+        <div class="lobby-card">
+            <div class="lobby-header-row">
+                <div class="lobby-title">CS2 FULL 3D + CASES + INVENTORY</div>
+                <div class="lobby-tabs">
+                    <button class="tab-btn active" data-tab="arena">АРЕНА</button>
+                    <button class="tab-btn" data-tab="cases">КЕЙСЫ</button>
+                    <button class="tab-btn" data-tab="inventory">АРСЕНАЛ</button>
+                    <button class="tab-btn" data-tab="settings">НАСТРОЙКИ</button>
+                </div>
+            </div>
+
+            <div class="lobby-subtext">Режим: Deathmatch 3D. Нажмите [F] или кнопку осмотра для активации карточки CS2 Skin Preview.</div>
+            <div class="lobby-stats">
+                <span>КИЛЛЫ: <strong id="lobby-kills">14</strong></span>
+                <span>БАЛАНС: $<strong id="lobby-cash">8550</strong></span>
+            </div>
+
+            <div id="tab-arena-panel" class="tab-content-panel active">
+                <p>Карта: de_dust2_box / Arena Training.</p>
+                <br>
+                <button class="lobby-action-btn" id="btn-enter-game">▶ НАЧАТЬ МАТЧ</button>
+            </div>
+
+            <div id="tab-cases-panel" class="tab-content-panel">
+                <div class="case-grid">
+                    <div class="case-card" data-casetype="tactical">
+                        <div class="case-icon">📦</div>
+                        <div style="font-weight:bold;">Оружейный кейс #1</div>
+                        <div style="color:#ef4444; font-size:11px;">Цена: $300</div>
+                    </div>
+                    <div class="case-card" data-casetype="sniper">
+                        <div class="case-icon">🎁</div>
+                        <div style="font-weight:bold;">Премиум кейс</div>
+                        <div style="color:#ef4444; font-size:11px;">Цена: $800</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-inventory-panel" class="tab-content-panel">
+                <div class="inventory-grid" id="inventory-container"></div>
+            </div>
+
+            <div id="tab-settings-panel" class="tab-content-panel">
+                <div class="settings-grid">
+                    <div class="setting-row">
+                        <span>Расположение интерфейса:</span>
+                        <select id="controls-pos-select" style="background:#0f172a; color:white; padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">
+                            <option value="right-standard">Слева движ / Справа прыжок и атака</option>
+                            <option value="left-top">Все вверху компактно</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <span>Сенса мыши/свайпа:</span>
+                        <input type="range" id="sens-range" min="0.001" max="0.01" step="0.0005" value="0.005">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="case-roulette-modal">
+        <h3 style="color:white;">ОТКРЫТИЕ КЕЙСА...</h3>
+        <div class="roulette-track-window">
+            <div class="roulette-pointer"></div>
+            <div class="roulette-track" id="roulette-track"></div>
+        </div>
+        <button class="close-menu" style="width:200px; display:none;" id="close-roulette-btn">ЗАБРАТЬ</button>
+    </div>
+
+    <!-- Оверлей осмотра скина (CS2 Style) поверх канваса -->
+    <div id="skin-inspect-overlay">
+        <div class="inspect-badge-hint">РЕЖИМ ОСМОТРА СКИНА • НАЖМИТЕ F ЕЩЕ РАЗ ДЛЯ ВЫХОДА</div>
+        <div class="skin-preview-card">
+            <div class="info-container">
+                <div class="info-row knife-row">
+                    <span class="label">Оружие:</span>
+                    <span class="value" id="inspect-weapon-val">M9 Bayonet | Волны Доплер (Фаза 4)</span>
+                </div>
+                <div class="info-row glove-row">
+                    <span class="label">Перчатки:</span>
+                    <span class="value">Водительские перчатки | Обгон</span>
+                </div>
+                <div class="info-row agent-row">
+                    <span class="label">Руки:</span>
+                    <span class="value">Драгмир | Кавалерия</span>
+                    <div class="float-bar"><div class="float-value"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="hud-top">
+        <div class="hud-panel">
+            <span>HP: <span class="hp-val" id="ui-hp">100</span></span>
+            <span>ОРУЖИЕ: <span id="ui-weapon">М9</span></span>
+            <span>$: <span class="cash-val" id="ui-cash">8550</span></span>
+            <span>КИЛЛЫ: <span class="kills-val" id="ui-kills">14</span></span>
+            <button class="hud-btn" id="btn-open-ingame-menu">АРСЕНАЛ</button>
+            <button class="hud-btn" style="background:#ef4444;" id="btn-return-lobby">ЛОББИ</button>
+        </div>
+    </div>
+
+    <div id="crosshair">＋</div>
+
+    <div id="virtual-dpad">
+        <div></div><div class="d-btn" data-key="KeyW">▲</div><div></div>
+        <div class="d-btn" data-key="KeyA">◀</div><div></div><div class="d-btn" data-key="KeyD">▶</div>
+        <div></div><div class="d-btn" data-key="KeyS">▼</div><div></div>
+    </div>
+
+    <div id="action-buttons">
+        <div class="action-circle jump-btn" id="btn-jump">ПРЫЖОК<br>[SPACE]</div>
+        <div class="action-circle" id="btn-inspect">ОСМОТР<br>[F]</div>
+        <div class="action-circle fire-btn" id="btn-fire">АТАКА<br>[M1]</div>
+    </div>
+
+    <div id="menu-modal">
+        <div class="menu-box">
+            <h2>ВЫБОР ОРУЖИЯ</h2>
+            <div class="menu-section">
+                <label>Инвентарь</label>
+                <div class="btn-grid" id="ingame-weapon-select"></div>
+            </div>
+            <button class="close-menu" id="btn-close-ingame-menu">ПРОДОЛЖИТЬ</button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const ALL_ITEMS = [
+            { id: 'М9', name: 'Нож M9 (Наклонный)', type: 'knife', damage: 35, skinName: 'M9 Bayonet | Волны Доплер (Фаза 4)' },
+            { id: 'АК-47', name: 'AK-47', type: 'rifle', damage: 45, skinName: 'AK-47 | Красная линия' },
+            { id: 'AWP', name: 'AWP Sniper', type: 'sniper', damage: 95, skinName: 'AWP | Азимов' },
+            { id: 'USP', name: 'USP-S', type: 'pistol', damage: 30, skinName: 'USP-S | Убийство подтверждено' }
+        ];
+
+        let inventory = ['М9', 'АК-47', 'AWP'];
+        let currentWeapon = 'М9';
+        let sensMultiplier = 0.005;
+        let cash = 8550;
+        let kills = 14;
+        let playerHp = 100;
+        let rouletteWinningItem = null;
+        let isRunning = false;
+        let isInspecting = false;
+        let inspectTime = 0;
+
+        const bodyRoot = document.getElementById('body-root');
+        const lobbyScreen = document.getElementById('lobby-screen');
+        const hudTop = document.getElementById('hud-top');
+        const crosshair = document.getElementById('crosshair');
+        const virtualDpad = document.getElementById('virtual-dpad');
+        const actionButtons = document.getElementById('action-buttons');
+        const menuModal = document.getElementById('menu-modal');
+        const skinInspectOverlay = document.getElementById('skin-inspect-overlay');
+        const inspectWeaponVal = document.getElementById('inspect-weapon-val');
+
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                tabBtns.forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                const targetTab = btn.getAttribute('data-tab');
+                document.querySelectorAll('.tab-content-panel').forEach(function(p) { p.classList.remove('active'); });
+                const activePanel = document.getElementById('tab-' + targetTab + '-panel');
+                if (activePanel) activePanel.classList.add('active');
+                if (targetTab === 'inventory') renderInventory();
+            });
+        });
+
+        function getSkinText(id) {
+            for (let i = 0; i < ALL_ITEMS.length; i++) {
+                if (ALL_ITEMS[i].id === id) return ALL_ITEMS[i].skinName;
+            }
+            return id;
+        }
+
+        function renderInventory() {
+            const container = document.getElementById('inventory-container');
+            if (!container) return;
+            container.innerHTML = '';
+            ALL_ITEMS.forEach(function(item) {
+                const hasItem = inventory.indexOf(item.id) !== -1;
+                const isEq = currentWeapon === item.id;
+                const div = document.createElement('div');
+                div.className = 'inv-item ' + (isEq ? 'equipped' : '');
+                let icon = '🔪';
+                if (item.type === 'sniper') icon = '🎯';
+                else if (item.type === 'rifle' || item.type === 'pistol') icon = '🔫';
+                
+                div.innerHTML = 
+                    '<div style="font-size:24px;">' + icon + '</div>' +
+                    '<div style="font-weight:bold;">' + item.name + '</div>' +
+                    '<div style="color:#22c55e;">Урон: ' + item.damage + '</div>' +
+                    (hasItem ? '<button class="inv-btn ' + (isEq ? 'eq' : '') + '" data-equip="' + item.id + '">' + (isEq ? 'НАДЕТО' : 'НАДЕТЬ') + '</button>' : '<div style="color:#ef4444;">ЗАКРЫТО</div>');
+                container.appendChild(div);
+            });
+            container.querySelectorAll('button[data-equip]').forEach(function(b) {
+                b.addEventListener('click', function() {
+                    equipWeapon(b.getAttribute('data-equip'));
+                });
+            });
+            renderInGameWeaponSelect();
+        }
+
+        function renderInGameWeaponSelect() {
+            const container = document.getElementById('ingame-weapon-select');
+            if (!container) return;
+            container.innerHTML = '';
+            inventory.forEach(function(invId) {
+                let foundItem = null;
+                for (let i = 0; i < ALL_ITEMS.length; i++) {
+                    if (ALL_ITEMS[i].id === invId) { foundItem = ALL_ITEMS[i]; break; }
+                }
+                if (!foundItem) return;
+                const btn = document.createElement('button');
+                btn.className = 'opt-btn ' + (currentWeapon === invId ? 'active' : '');
+                btn.innerText = foundItem.name;
+                btn.addEventListener('click', function() {
+                    equipWeapon(invId);
+                    renderInGameWeaponSelect();
+                });
+                container.appendChild(btn);
+            });
+        }
+
+        function equipWeapon(id) {
+            if (inventory.indexOf(id) === -1) return;
+            currentWeapon = id;
+            const uiW = document.getElementById('ui-weapon');
+            if (uiW) uiW.innerText = id;
+            inspectWeaponVal.innerText = getSkinText(id);
+            update3DWeaponGeometry();
+            renderInventory();
+        }
+
+        const controlsSelect = document.getElementById('controls-pos-select');
+        if (controlsSelect) {
+            controlsSelect.addEventListener('change', function(e) {
+                bodyRoot.className = e.target.value === 'left-top' ? 'in-game hud-pos-left-top' : 'in-game';
+            });
+        }
+
+        const sensRange = document.getElementById('sens-range');
+        if (sensRange) {
+            sensRange.addEventListener('input', function(e) {
+                sensMultiplier = parseFloat(e.target.value);
+            });
+        }
+
+        document.querySelectorAll('.case-card').forEach(function(card) {
+            card.addEventListener('click', function() {
+                openCase(card.getAttribute('data-casetype'));
+            });
+        });
+
+        function openCase(type) {
+            const cost = (type === 'sniper') ? 800 : 300;
+            if (cash < cost) {
+                alert('Недостаточно денег!');
+                return;
+            }
+            cash -= cost;
+            document.getElementById('lobby-cash').innerText = cash;
+            document.getElementById('ui-cash').innerText = cash;
+
+            const modal = document.getElementById('case-roulette-modal');
+            const track = document.getElementById('roulette-track');
+            const closeBtn = document.getElementById('close-roulette-btn');
+            closeBtn.style.display = 'none';
+            modal.style.display = 'flex';
+            track.style.transition = 'none';
+            track.style.transform = 'translateX(0px)';
+
+            const pool = (type === 'sniper') ? ['АК-47', 'AWP', 'USP'] : ['М9', 'АК-47', 'USP'];
+            const itemsList = [];
+            for (let i = 0; i < 40; i++) {
+                itemsList.push(pool[Math.floor(Math.random() * pool.length)]);
+            }
+            rouletteWinningItem = itemsList[32];
+
+            track.innerHTML = '';
+            itemsList.forEach(function(id) {
+                let foundItem = null;
+                for (let i = 0; i < ALL_ITEMS.length; i++) {
+                    if (ALL_ITEMS[i].id === id) { foundItem = ALL_ITEMS[i]; break; }
+                }
+                const el = document.createElement('div');
+                el.className = 'roulette-item';
+                el.innerHTML = '<div>🎁</div><div>' + (foundItem ? foundItem.name : id) + '</div>';
+                track.appendChild(el);
+            });
+
+            setTimeout(function() {
+                track.style.transition = 'transform 4s cubic-bezier(0.08, 0.82, 0.17, 1)';
+                const targetOffset = -(32 * 120 - 700 / 2 + 60);
+                track.style.transform = 'translateX(' + targetOffset + 'px)';
+            }, 50);
+
+            setTimeout(function() {
+                closeBtn.style.display = 'block';
+                if (rouletteWinningItem && inventory.indexOf(rouletteWinningItem) === -1) {
+                    inventory.push(rouletteWinningItem);
+                    renderInventory();
+                }
+            }, 4200);
+        }
+
+        document.getElementById('close-roulette-btn').addEventListener('click', function() {
+            document.getElementById('case-roulette-modal').style.display = 'none';
+        });
+
+        document.getElementById('btn-enter-game').addEventListener('click', function() {
+            lobbyScreen.style.display = 'none';
+            bodyRoot.classList.add('in-game');
+            hudTop.style.opacity = '1';
+            crosshair.style.opacity = '1';
+            virtualDpad.style.opacity = '1';
+            actionButtons.style.opacity = '1';
+            inspectWeaponVal.innerText = getSkinText(currentWeapon);
+            playerHp = 100;
+            document.getElementById('ui-hp').innerText = playerHp;
+            isRunning = true;
+            spawnBots();
+        });
+
+        function returnToLobby() {
+            isRunning = false;
+            isInspecting = false;
+            skinInspectOverlay.classList.remove('active');
+            bodyRoot.classList.remove('in-game');
+            hudTop.style.opacity = '0';
+            crosshair.style.opacity = '0';
+            virtualDpad.style.opacity = '0';
+            actionButtons.style.opacity = '0';
+            menuModal.style.display = 'none';
+            lobbyScreen.style.display = 'flex';
+        }
+
+        document.getElementById('btn-return-lobby').addEventListener('click', returnToLobby);
+        document.getElementById('btn-open-ingame-menu').addEventListener('click', function() {
+            renderInGameWeaponSelect();
+            menuModal.style.display = 'flex';
+        });
+        document.getElementById('btn-close-ingame-menu').addEventListener('click', function() {
+            menuModal.style.display = 'none';
+        });
+
+        renderInventory();
+
+        // 3D АРЕНА
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1e293b);
+        scene.fog = new THREE.FogExp2(0x1e293b, 0.015);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(20, 40, 20);
+        scene.add(dirLight);
+
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(80, 80),
+            new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.9 })
+        );
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+
+        const gridHelper = new THREE.GridHelper(80, 40, 0x3b82f6, 0x475569);
+        gridHelper.position.y = 0.05;
+        scene.add(gridHelper);
+
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.7 });
+        function addBox(w, h, d, x, y, z) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+            m.position.set(x, y, z);
+            scene.add(m);
+        }
+        addBox(80, 10, 2, 0, 5, -40); addBox(80, 10, 2, 0, 5, 40);
+        addBox(2, 10, 80, -40, 5, 0); addBox(2, 10, 80, 40, 5, 0);
+        addBox(8, 4, 8, 0, 2, -12); addBox(6, 4, 6, -18, 2, 6); addBox(6, 4, 6, 18, 2, 6);
+
+        // Боты
+        const bots = [];
+        function createBotMesh() {
+            const group = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x27272a });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: 0x991b1b });
+
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.4, 0.6), shirtMat);
+            torso.position.y = 1.4; group.add(torso);
+
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), bodyMat);
+            head.position.y = 2.4; group.add(head);
+
+            const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.1, 0.35), bodyMat); lLeg.position.set(-0.25, 0.55, 0);
+            const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.1, 0.35), bodyMat); rLeg.position.set(0.25, 0.55, 0);
+            group.add(lLeg); group.add(rLeg);
+            return group;
+        }
+
+        function spawnBots() {
+            bots.forEach(function(b) { scene.remove(b.group); });
+            bots.length = 0;
+            const coords = [{x: 0, z: -20}, {x: -15, z: -12}, {x: 15, z: -14}, {x: -12, z: 16}, {x: 14, z: 18} ];
+            coords.forEach(function(pos) {
+                const group = createBotMesh();
+                group.position.set(pos.x, 0, pos.z);
+                scene.add(group);
+                bots.push({ group: group, hp: 100, alive: true, attackCooldown: 0 });
+            });
+        }
+        spawnBots();
+
+        let playerPos = { x: 0, z: 25 }, yaw = 0, pitch = 0;
+        let velocityY = 0, isGrounded = true;
+        const weaponGroup = new THREE.Group();
+        camera.add(weaponGroup);
+        scene.add(camera);
+
+        weaponGroup.position.set(0.20, -0.18, -0.32);
+        weaponGroup.rotation.set(0.25, -0.35, 0.15);
+
+        function update3DWeaponGeometry() {
+            while (weaponGroup.children.length > 0) { weaponGroup.remove(weaponGroup.children[0]); }
+            
+            const gloveMat = new THREE.MeshStandardMaterial({ color: 0x111827 });
+            const rHand = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.13, 0.15), gloveMat);
+            rHand.position.set(0, -0.05, -0.03);
+            weaponGroup.add(rHand);
+
+            const metalMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.2 });
+            const handleMat = new THREE.MeshStandardMaterial({ color: 0x0f172a });
+            const brassMat = new THREE.MeshStandardMaterial({ color: 0xd97706 });
+
+            if (currentWeapon === 'АК-47' || currentWeapon === 'AWP' || currentWeapon === 'USP') {
+                const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.65), metalMat);
+                body.position.set(0, 0.05, 0.2);
+                weaponGroup.add(body);
+            } else {
+                const scaleFactor = 0.65;
+                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.023, 0.14, 12), handleMat); 
+                handle.position.set(0, -0.04, 0);
+                const guard = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.022, 0.05), brassMat); 
+                guard.position.set(0, 0.03, 0);
+                const bladeMain = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.24, 0.035), metalMat); 
+                bladeMain.position.set(0, 0.15, 0);
+                const tip = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.06, 4), metalMat); 
+                tip.position.set(0, 0.30, 0); 
+
+                const m9Group = new THREE.Group();
+                m9Group.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                m9Group.add(handle, guard, bladeMain, tip);
+                m9Group.rotation.z = -0.45;
+                m9Group.rotation.x = 0.35;
+                weaponGroup.add(m9Group);
+            }
+        }
+        update3DWeaponGeometry();
+
+        const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false };
+        window.addEventListener('keydown', function(e) { if (keys.hasOwnProperty(e.code)) keys[e.code] = true; });
+        window.addEventListener('keyup', function(e) { if (keys.hasOwnProperty(e.code)) keys[e.code] = false; });
+
+        let touchStartX = null, touchStartY = null;
+        window.addEventListener('touchstart', function(e) {
+            if (isRunning && e.touches.length === 1 && !e.target.closest('button') && !e.target.closest('#virtual-dpad')) {
+                touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+            }
+        });
+        window.addEventListener('touchmove', function(e) {
+            if (isRunning && touchStartX !== null && e.touches.length === 1 && !e.target.closest('#virtual-dpad')) {
+                yaw -= (e.touches[0].clientX - touchStartX) * (sensMultiplier * 1.5);
+                pitch = Math.max(-1.1, Math.min(1.1, pitch - (e.touches[0].clientY - touchStartY) * (sensMultiplier * 1.5)));
+                touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+            }
+        });
+        window.addEventListener('touchend', function() { touchStartX = null; touchStartY = null; });
+
+        renderer.domElement.addEventListener('mousemove', function(e) {
+            if (isRunning && document.pointerLockElement === renderer.domElement) {
+                yaw -= e.movementX * sensMultiplier;
+                pitch = Math.max(-1.1, Math.min(1.1, pitch - e.movementY * sensMultiplier));
+            }
+        });
+        renderer.domElement.addEventListener('click', function() {
+            if (isRunning) {
+                if (document.body.clientWidth > 768 && renderer.domElement.requestPointerLock) {
+                    renderer.domElement.requestPointerLock();
+                }
+                triggerAttack();
+            }
+        });
+
+        document.querySelectorAll('#virtual-dpad .d-btn').forEach(function(btn) {
+            const k = btn.dataset.key;
+            if (!k) return;
+            btn.addEventListener('touchstart', function(e) { e.preventDefault(); keys[k] = true; btn.classList.add('pressed'); });
+            btn.addEventListener('touchend', function(e) { e.preventDefault(); keys[k] = false; btn.classList.remove('pressed'); });
+            btn.addEventListener('mousedown', function() { keys[k] = true; btn.classList.add('pressed'); });
+            btn.addEventListener('mouseup', function() { keys[k] = false; btn.classList.remove('pressed'); });
+        });
+
+        const jumpBtn = document.getElementById('btn-jump');
+        function triggerJump() {
+            if (isGrounded) {
+                velocityY = 0.20;
+                isGrounded = false;
+            }
+        }
+        if (jumpBtn) {
+            jumpBtn.addEventListener('touchstart', function(e) { e.preventDefault(); triggerJump(); jumpBtn.classList.add('pressed'); });
+            jumpBtn.addEventListener('touchend', function(e) { e.preventDefault(); jumpBtn.classList.remove('pressed'); });
+            jumpBtn.addEventListener('mousedown', function() { triggerJump(); jumpBtn.classList.add('pressed'); });
+            jumpBtn.addEventListener('mouseup', function() { jumpBtn.classList.remove('pressed'); });
+        }
+        window.addEventListener('keydown', function(e) {
+            if (isRunning && (e.code === 'Space')) triggerJump();
+        });
+
+        const inspectBtn = document.getElementById('btn-inspect');
+        function toggleInspectOverlay() {
+            isInspecting = !isInspecting;
+            inspectTime = 0;
+            if (isInspecting) {
+                skinInspectOverlay.classList.add('active');
+                inspectWeaponVal.innerText = getSkinText(currentWeapon);
+            } else {
+                skinInspectOverlay.classList.remove('active');
+            }
+        }
+        if (inspectBtn) inspectBtn.addEventListener('click', toggleInspectOverlay);
+        window.addEventListener('keydown', function(e) {
+            if (isRunning && (e.code === 'KeyF' || e.key === 'f' || e.key === 'а')) {
+                toggleInspectOverlay();
+            }
+        });
+        
+        const fireBtn = document.getElementById('btn-fire');
+        if (fireBtn) fireBtn.addEventListener('click', triggerAttack);
+
+        function triggerAttack() {
+            let dmg = 35;
+            for (let i = 0; i < ALL_ITEMS.length; i++) {
+                if (ALL_ITEMS[i].id === currentWeapon) { dmg = ALL_ITEMS[i].damage; break; }
+            }
+            bots.forEach(function(b) {
+                if (!b.alive) return;
+                let dist = Math.hypot(b.group.position.x - playerPos.x, b.group.position.z - playerPos.z);
+                if (dist < 8) {
+                    b.hp -= dmg;
+                    if (b.hp <= 0) {
+                        b.alive = false; b.group.visible = false;
+                        kills++; cash += 300;
+                        document.getElementById('ui-kills').innerText = kills;
+                        document.getElementById('ui-cash').innerText = cash;
+                        document.getElementById('lobby-kills').innerText = kills;
+                        document.getElementById('lobby-cash').innerText = cash;
+                    }
+                }
+            });
+        }
+
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        let cameraYPos = 1.7;
+        let botAIClock = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (isRunning) {
+                botAIClock += 0.016;
+                let forward = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+                let strafe = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+                
+                velocityY -= 0.008;
+                cameraYPos += velocityY;
+                if (cameraYPos <= 1.7) {
+                    cameraYPos = 1.7;
+                    velocityY = 0;
+                    isGrounded = true;
+                }
+
+                let speed = 0.15;
+                playerPos.x += (-Math.sin(yaw) * forward + Math.cos(yaw) * strafe) * speed;
+                playerPos.z += (-Math.cos(yaw) * forward - Math.sin(yaw) * strafe) * speed;
+                playerPos.x = Math.max(-36, Math.min(36, playerPos.x));
+                playerPos.z = Math.max(-36, Math.min(36, playerPos.z));
+                camera.position.set(playerPos.x, cameraYPos, playerPos.z);
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = yaw; camera.rotation.x = pitch;
+
+                // ИИ ботов
+                bots.forEach(function(b) {
+                    if (!b.alive) return;
+                    let dx = playerPos.x - b.group.position.x;
+                    let dz = playerPos.z - b.group.position.z;
+                    let dist = Math.hypot(dx, dz);
+                    
+                    if (dist > 1.2) {
+                        let moveSpeed = 0.035;
+                        b.group.position.x += (dx / dist) * moveSpeed;
+                        b.group.position.z += (dz / dist) * moveSpeed;
+                        b.group.rotation.y = Math.atan2(dx, dz);
+                    } else {
+                        if (botAIClock - b.attackCooldown > 1.2) {
+                            b.attackCooldown = botAIClock;
+                            playerHp -= 10;
+                            if (playerHp < 0) playerHp = 0;
+                            document.getElementById('ui-hp').innerText = playerHp;
+                            if (playerHp <= 0) {
+                                alert('Вас устранили!');
+                                returnToLobby();
+                            }
+                        }
+                    }
+                });
+
+                // Анимация вращения/осмотра оружия в руке
+                if (isInspecting) {
+                    inspectTime += 0.08;
+                    weaponGroup.rotation.y = -0.35 + Math.sin(inspectTime) * 2.2;
+                    weaponGroup.rotation.z = 0.15 + Math.cos(inspectTime * 0.5) * 0.5;
+                    weaponGroup.rotation.x = 0.25 + Math.sin(inspectTime * 0.7) * 0.3;
+                } else {
+                    weaponGroup.rotation.set(0.25, -0.35, 0.15);
+                }
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+        // ПОДКЛЮЧАЕМ И ЗАГРУЖАЕМ 3D-НОЖ М9
+const gltfLoader = new THREE.GLTFLoader ? new THREE.GLTFLoader() : null; 
+// Если загрузчик импортирован как модуль, используем его, иначе создаем через THREE
+
+function loadM9Knife() {
+    const modelUrl = 'https://github.io';
+    
+    if (!gltfLoader) {
+        // Если лоадер подключается через импорт вверху, используем стандартный вызов
+        try {
+            const moduleLoader = new GLTFLoader();
+            moduleLoader.load(modelUrl, onKnifeLoaded);
+        } catch(e) { console.error("Ошибка лоадера:", e); }
+        return;
+    }
+    gltfLoader.load(modelUrl, onKnifeLoaded);
+}
+
+function onKnifeLoaded(gltf) {
+    const m9Knife = gltf.scene;
+    
+    // МАСШТАБ: уменьшаем модель со Sketchfab, чтобы она поместилась в руку
+    m9Knife.scale.set(0.01, 0.01, 0.01);
+    
+    // Добавляем нож в твою существующую группу оружия weaponGroup!
+    if (typeof weaponGroup !== 'undefined') {
+        weaponGroup.add(m9Knife);
+        
+        // ПОЗИЦИЯ: подгоняем положение ножа под твою группу оружия
+        m9Knife.position.set(0, 0, 0); 
+        m9Knife.rotation.set(0, Math.PI / 2, 0); // Поворот лезвием вперед
+        console.log("3D-нож M9 Bayonet добавлен в weaponGroup!");
+    } else {
+        camera.add(m9Knife);
+        m9Knife.position.set(0.3, -0.2, -0.5);
+    }
+}
+
+// Запускаем загрузку ножа
+loadM9Knife();
+
+    })();
+    </script>
+</body>
+</html>
