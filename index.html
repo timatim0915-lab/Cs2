@@ -841,48 +841,9 @@
             renderer.render(scene, camera);
         }
         animate();
-        // ПОДКЛЮЧАЕМ И ЗАГРУЖАЕМ 3D-НОЖ М9
-const gltfLoader = new THREE.GLTFLoader ? new THREE.GLTFLoader() : null; 
-// Если загрузчик импортирован как модуль, используем его, иначе создаем через THREE
-
-function loadM9Knife() {
-    const modelUrl = 'https://github.io';
-    
-    if (!gltfLoader) {
-        // Если лоадер подключается через импорт вверху, используем стандартный вызов
-        try {
-            const moduleLoader = new GLTFLoader();
-            moduleLoader.load(modelUrl, onKnifeLoaded);
-        } catch(e) { console.error("Ошибка лоадера:", e); }
-        return;
-    }
-    gltfLoader.load(modelUrl, onKnifeLoaded);
-}
-
-function onKnifeLoaded(gltf) {
-    const m9Knife = gltf.scene;
-    
-    // МАСШТАБ: уменьшаем модель со Sketchfab, чтобы она поместилась в руку
-    m9Knife.scale.set(0.01, 0.01, 0.01);
-    
-    // Добавляем нож в твою существующую группу оружия weaponGroup!
-    if (typeof weaponGroup !== 'undefined') {
-        weaponGroup.add(m9Knife);
         
-        // ПОЗИЦИЯ: подгоняем положение ножа под твою группу оружия
-        m9Knife.position.set(0, 0, 0); 
-        m9Knife.rotation.set(0, Math.PI / 2, 0); // Поворот лезвием вперед
-        console.log("3D-нож M9 Bayonet добавлен в weaponGroup!");
-    } else {
-        camera.add(m9Knife);
-        m9Knife.position.set(0.3, -0.2, -0.5);
+
     }
-}
-
-// Запускаем загрузку ножа
-loadM9Knife();
-
-    })();
     </script>
 </body>
 </html>
